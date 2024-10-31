@@ -5,6 +5,10 @@ import json
 import random
 
 
+headers = {
+    "Accepts": "application/json",
+}
+
 quotes = {"quotes": []}
 
 
@@ -18,7 +22,7 @@ async def fetch_quotes(path=None):
         str: Тело ответа после запроса к сайту
     """
     url = f'https://quotes.toscrape.com{path if path else ""}'
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(headers=headers) as session:
         async with session.get(url) as response:
             return await response.text()
 
@@ -33,7 +37,7 @@ async def fetch_author(path):
         str: Тело ответа после запроса к сайту
     """
     url = f"https://quotes.toscrape.com{path}"
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(headers=headers) as session:
         async with session.get(url) as response:
             return await response.text()
 
@@ -107,29 +111,38 @@ async def collect_quotes_data(data):
 
     quotes_list = []
     for raw_quote in raw_quotes:
-        raw_author_data = await fetch_author(raw_quote.find("a", href=True)["href"]) # Получение ссылки на автора
-        author_data = await collect_author_data(raw_author_data) # Получение информации о авторе с /author/author-name
+        raw_author_data = await fetch_author(
+            raw_quote.find("a", href=True)["href"]
+        )  # Получение ссылки на автора
+        author_data = await collect_author_data(
+            raw_author_data
+        )  # Получение информации о авторе с /author/author-name
 
         quote = {
             "quote": raw_quote.find("span", "text").text,
             "author": author_data,
             "tags": [tag.text for tag in raw_quote.find_all("a", "tag")],
-        } # Создание словаря для цитаты
+        }  # Создание словаря для цитаты
         quotes_list.append(quote)
 
-    quotes["quotes"].append(quotes_list) # Сохранение полученных цитат в словарь для дальнейшей записи в JSON
+    quotes["quotes"].append(
+        quotes_list
+    )  # Сохранение полученных цитат в словарь для дальнейшей записи в JSON
 
 
 async def main():
     path_link = ""
+    count = 1
 
     while True:
         if path_link is None:
             break
-        await asyncio.sleep(random.randint(1, 10)) # Выдает ошибку лимита семафора, ограничение по запросам во избежание ошибки
-        html = await fetch_quotes(path_link) # Получение HTML с сайта
-        path_link = await get_next_link(html) # Получение ссылки на следующую страницу 
-        await collect_quotes_data(html) # Получение информации о цитатах
+
+        html = await fetch_quotes(path_link)  # Получение HTML с сайта
+        path_link = await get_next_link(html)  # Получение ссылки на следующую страницу
+        await collect_quotes_data(html)  # Получение информации о цитатах
+        print(f"Страница {count} пройдена")
+        count += 1
 
     await save_to_json(quotes)
 
